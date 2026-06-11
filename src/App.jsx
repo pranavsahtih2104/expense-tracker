@@ -6,6 +6,12 @@ export default function ExpenseTracker() {
   // --- 1. CORE COMPONENT STATE HOOKS ---
   const [allExpenses, setAllExpenses] = useState([]);
   const [filterCategory, setFilterCategory] = useState("All");
+  // --- AUTH STATES ---
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [usernameInput, setUsernameInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [currentUser, setCurrentUser] = useState(localStorage.getItem("username") || "");
 
   // Controlled input hooks for tracking form interactions mid-flight
   const [nameInput, setNameInput] = useState("");
@@ -17,13 +23,74 @@ export default function ExpenseTracker() {
 
   // Trigger initial lifecycle query to sync state array on component bootup
   useEffect(() => {
-    fetchExpenses();
-  }, []);
+    if (token) {
+      fetchExpenses();
+    }
+  }, [token]);
 
-  // GET: Fetch all elements from DB
-  const fetchExpenses = async () => {
+// Handle User Registration
+  const handleRegister = async (e) => {
+    e.preventDefault();
     try {
-      const res = await fetch(`${BASE_URL}/expenses`);
+      const res = await fetch(`${BASE_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: usernameInput, password: passwordInput })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Registration successful! Please log in.");
+        setIsRegistering(false);
+        setPasswordInput("");
+      } else {
+        alert(data.error || "Registration failed");
+      }
+    } catch (err) {
+      console.error("Registration error:", err);
+    }
+  };
+
+  // Handle User Login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: usernameInput, password: passwordInput })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("username", data.username);
+        setToken(data.token);
+        setCurrentUser(data.username);
+        setUsernameInput("");
+        setPasswordInput("");
+      } else {
+        alert(data.error || "Login failed");
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+    }
+  };
+
+  // Handle Logout
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    setToken("");
+    setCurrentUser("");
+    setAllExpenses([]);
+  };
+
+  // GET: Fetch user-specific expenses
+  const fetchExpenses = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BASE_URL}/expenses`, {
+        headers: { "Authorization": `Bearer ${token}` } // 👈 Hand over token
+      });
       const data = await res.json();
       if (Array.isArray(data)) {
         setAllExpenses(data);
@@ -43,7 +110,10 @@ export default function ExpenseTracker() {
     try {
       await fetch(`${BASE_URL}/expenses`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` // 👈 Hand over token
+        },
         body: JSON.stringify({
           description: nameInput,
           amount: parseFloat(amountInput),
@@ -52,12 +122,8 @@ export default function ExpenseTracker() {
         }),
       });
 
-      // Reset text inputs back to empty layouts
       setNameInput("");
       setAmountInput("");
-      setFilterCategory("All");
-
-      // Pull down clean dataset from server
       fetchExpenses();
     } catch (err) {
       console.error("Failed to add record:", err);
@@ -119,12 +185,69 @@ export default function ExpenseTracker() {
 
 
   // --- 4. COMPONENT VISUAL JSX LAYOUT ---
+  // --- 4. COMPONENT VISUAL JSX LAYOUT ---
+  
+  // Conditionally render the Auth Gate if the user is not logged in
+  if (!token) {
+    return (
+      <div className="container mt-5 d-flex justify-content-center align-items-center" style={{ minHeight: "80vh" }}>
+        <div className="card p-4 text-white" style={{ width: "400px", backgroundColor: "#111", borderRadius: "8px", border: "1px solid #333" }}>
+          <h2 className="text-center mb-4 fw-bold">{isRegistering ? "Create Account" : "Sign In"}</h2>
+          
+          <form onSubmit={isRegistering ? handleRegister : handleLogin}>
+            <div className="mb-3">
+              <label className="form-label text-secondary">Username</label>
+              <input 
+                type="text" 
+                className="form-control bg-dark text-white border-secondary" 
+                value={usernameInput} 
+                onChange={(e) => setUsernameInput(e.target.value)} 
+                required 
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="form-label text-secondary">Password</label>
+              <input 
+                type="password" 
+                className="form-control bg-dark text-white border-secondary" 
+                value={passwordInput} 
+                onChange={(e) => setPasswordInput(e.target.value)} 
+                required 
+              />
+            </div>
+            
+            <button type="submit" className="btn btn-success w-100 fw-bold">
+              {isRegistering ? "Register Account" : "Login"}
+            </button>
+          </form>
+          
+          <div className="text-center mt-3">
+            <button className="btn btn-link btn-sm text-decoration-none text-success" onClick={() => setIsRegistering(!isRegistering)}>
+              {isRegistering ? "Already have an account? Login" : "Don't have an account? Sign Up"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render the core dashboard once authorized
   return (
     <div className="container mt-5" style={{ maxWidth: "950px", backgroundColor: "black", minHeight: "100vh", padding: "30px", borderRadius: "8px" }}>
       
-      <h1 className="text-center fw-bold mb-4 text-white" style={{ fontSize: "36px" }}>
-        Expense Tracker
-      </h1>
+      {/* Top Welcome Bar & Logout Action */}
+      <div className="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+        <h1 className="fw-bold text-white mb-0" style={{ fontSize: "36px" }}>
+          Expense Tracker
+        </h1>
+        <div className="text-white d-flex align-items-center gap-3">
+          <span>Welcome, <strong className="text-success">{currentUser}</strong></span>
+          <button className="btn btn-outline-danger btn-sm fw-medium" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      </div>
 
       {/* Entry Generation Header Control Grid */}
       <div className="row g-2 mb-4 align-items-center">
