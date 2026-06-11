@@ -147,7 +147,10 @@ export default function ExpenseTracker() {
     try {
       await fetch(`${BASE_URL}/expenses/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` // 👈 Added Token Entry
+        },
         body: JSON.stringify({
           description: newDesc,
           amount: parseFloat(newAmount) || item.amount,
@@ -166,7 +169,12 @@ export default function ExpenseTracker() {
     if (!window.confirm("Are you sure you want to delete this expense?")) return;
 
     try {
-      await fetch(`${BASE_URL}/expenses/${id}`, { method: "DELETE" });
+      await fetch(`${BASE_URL}/expenses/${id}`, { 
+        method: "DELETE",
+        headers: { 
+          "Authorization": `Bearer ${token}` // 👈 Added Token Entry
+        }
+      });
       fetchExpenses();
     } catch (err) {
       console.error("Failed to delete entry:", err);
