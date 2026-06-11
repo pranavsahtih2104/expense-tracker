@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 export default function ExpenseTracker() {
-  const BASE_URL = "http://localhost:3000";
+  const BASE_URL = "https://expense-tracker-bhth.onrender.com";
 
   // --- 1. CORE COMPONENT STATE HOOKS ---
   const [allExpenses, setAllExpenses] = useState([]);
